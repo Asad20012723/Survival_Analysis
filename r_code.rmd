@@ -1,0 +1,211 @@
+---
+title: "Brca_cbnn_code"
+output: html_document
+date: "2025-01-20"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+install.packages("casebase")
+```
+
+
+```{r}
+data <- read.csv("C:\\Users\\T00733937\\Downloads\\reduced_non_cb_luad.csv")
+
+# Check for missing values in the relevant columns
+sum(is.na(data$OS.time))  # Check for missing values in time column
+sum(is.na(data$OS))       # Check for missing values in event column
+```
+
+
+```{r}
+
+
+print(dim(data))
+
+```
+
+
+```{r}
+
+
+data_clean=data %>%
+  filter(!is.na(OS.time))
+
+# Check if the missing value has been removed
+print(sum(is.na(data_clean$OS.time)) ) # Should return 0
+
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r}
+# Load necessary libraries
+library(survival)
+library(ggplot2)
+library(dplyr)
+library(casebase)
+
+# Step 1: Import the data
+# Replace 'file_path.csv' with the path to your CSV file
+# Step 2: Inspect the data
+head(data)
+str(data)
+
+# Step 3: Define variables for case-base sampling
+# Replace 'time_column' and 'event_column' with the actual column names in your dataset
+time <- "OS.time"  # Time to event
+event <- "OS"             # Event occurrence (1 for event, 0 for censoring)
+censored_indicator <- 0      # Define the indicator for censored observations
+
+# Step 4: Perform case-base sampling
+# Adjust the ratio parameter as needed (default is 10)
+casebase_sample <- sampleCaseBase(
+  data = data,
+  time = time,
+  event = event,
+  ratio = 10,             # Ratio of controls to cases
+  #comprisk = FALSE,       # Set to TRUE if dealing with competing #risks
+#  censored.indicator = censored_indicator
+)
+
+# Step 5: Inspect the sampled data
+head(casebase_sample)
+```
+
+
+```{r}
+print(dim(casebase_sample))
+
+```
+
+
+```{r}
+print(dim(data))
+```
+
+
+```{r}
+# Step 6: Save the sampled data to a CSV file
+# Replace 'sampled_data.csv' with your desired file name
+write.csv(casebase_sample, "reduced_luad_lasso_cb.csv", row.names = FALSE)
+
+# Step 7: Download the CSV file
+# If running in an RStudio environment or server, the file will be available in the working directory.
+#getwd()  # Use this command to check the current working directory.
+```
+
+
+```{r}
+ggplot() +
+  geom_histogram(data = data, aes(x = OS.time, fill = "Before Case-Base Sampling"), bins = 30, alpha = 0.5) +
+  geom_histogram(data = casebase_sample, aes(x = OS.time, fill = "After Case-Base Sampling"), bins = 30, alpha = 0.5) +
+  scale_fill_manual(values = c("Before Case-Base Sampling" = "blue", "After Case-Base Sampling" = "red")) +
+  labs(title = "Distribution of Survival Time",
+       x = "OS.time",
+       y = "Count") +
+  theme_minimal()
+```
+
+
+```{r}
+install.packages("survminer")
+```
+
+
+```{r} 
+
+install.packages("visreg")
+
+```
+
+
+```{r}
+ggplot() +
+  geom_bar(data = data, aes(x = as.factor(OS), fill = "Before Case-Base Sampling"), alpha = 0.5) +
+  geom_bar(data = casebase_sample, aes(x = as.factor(OS), fill = "After Case-Base Sampling"), alpha = 0.5) +
+  scale_fill_manual(values = c("Before Case-Base Sampling" = "blue", "After Case-Base Sampling" = "red")) +
+  labs(title = "Event (OS) Distribution",
+       x = "OS (Event Occurrence)",
+       y = "Count") +
+  theme_minimal()
+```
+
+
+```{r}
+library(casebase)
+library(ggplot2)
+
+# Assuming 'data' is your original dataset
+pop_time_original <- popTime(data, time = "OS.time", event = "OS")
+plot(pop_time_original) +
+  ggtitle("Population Time Plot - Original Dataset")
+```
+
+
+```{r}
+# Assuming 'casebase_sample' is your sampled dataset
+pop_time_sampled <- popTime(casebase_sample, time = "OS.time", event = "OS")
+plot(pop_time_sampled) +
+  ggtitle("Population Time Plot - Case-Base Sampled Dataset")
+```
+
+
+```{r}
+# Load the splines package
+library(splines)
+
+# Fit a smooth hazard model for the original dataset
+fit_original <- fitSmoothHazard(OS ~ ns(OS.time, df = 3), data = data, time = "OS.time")
+plot(fit_original, hazard.params = list(xvar = "OS.time"))
+
+# Plot the hazard function
+plot(fit_original, hazard.params = list(xvar = "OS.time")) +
+  ggtitle("Hazard Function - Original Dataset")
+
+
+```
+
+
+```{r}
+# Fit a smooth hazard model for the sampled dataset
+fit_sampled <- fitSmoothHazard(OS ~ ns(OS.time, df = 3), data = casebase_sample, time = "OS.time")
+plot(fit_sampled, hazard.params = list(xvar = "OS.time")) +
+  ggtitle("Hazard Function - Case-Base Sampled Dataset")
+
+
+
+```
+
+
+```{r}
+# Calculate and plot CIF for the original dataset
+cif_original <- absoluteRisk(fit_original, newdata = data)
+plot(cif_original) +
+  ggtitle("Cumulative Incidence Function - Original Dataset")
+```
+
+
+```{r}
+
+# Calculate and plot CIF for the sampled dataset
+cif_sampled <- absoluteRisk(fit_sampled, newdata = casebase_sample)
+plot(cif_sampled) +
+  ggtitle("Cumulative Incidence Function - Case-Base Sampled Dataset")
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
